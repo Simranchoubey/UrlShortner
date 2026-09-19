@@ -1,0 +1,104 @@
+# Docker Compose for the URL Shortener's infrastructure dependencies.
+#
+# Services:
+#   - PostgreSQL (postgres:16-alpine)
+#   - Redis      (redis:7-alpine)
+#   - Kafka      (apache/kafka:4.3.1) — single-node KRaft, broker + controller
+#
+# Host port notes (macOS / Docker Desktop):
+#   - Docker Desktop's own backend (com.docker.backend) already binds host
+#     port 5432, so PostgreSQL is published on host 5433 -> container 5432.
+#     The container itself still listens on 5432 internally, so a Spring Boot
+#     app running *inside* this Compose network connects via urlshortener-db:5432.
+#     A Spring Boot app running directly on the Mac uses localhost:5433.
+#   - Kafka exposes two listeners:
+#       PLAINTEXT       on container 9092  (advertised urlshortener-kafka:9092)  -> used by other containers
+#       PLAINTEXT_HOST  on container 29092 (advertised localhost:9092)           -> used by a host app; published to host 9092
+#     So a host app uses localhost:9092, and a Docker-network app uses urlshortener-kafka:9092.
+#   - Redis is published on host 6379 -> container 6379.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: urlshortener-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-urlshortener}
+      POSTGRES_USER: ${DB_USERNAME:-urlshortener}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change-me}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: urlshortener-redis
+    # Redis is an optional performance layer: it stays up but the app is resilient
+    # to it. No password is set here by default; for real deployments set a password
+    # via the REDIS_PASSWORD env var and the app's spring.data.redis.password.
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Single-node Kafka using KRaft (no ZooKeeper). Uses the official Apache Kafka
+  # image (apache/kafka:4.3.1). This image reads Apache-style KAFKA_* environment
+  # variables and mounts its log dir at /tmp/kraft-combined-logs by default —
+  # it does NOT understand the Bitnami KAFKA_CFG_* prefix nor ALLOW_PLAINTEXT_LISTENER.
+  #
+  # Two listeners make the broker reachable from both the host and other containers:
+  #   PLAINTEXT (container 9092)  advertised as urlshortener-kafka:9092  (docker network)
+  #   PLAINTEXT_HOST (container 29092) advertised as localhost:9092, published 9092->29092 (Mac host)
+  kafka:
+    image: apache/kafka:4.3.1
+    container_name: urlshortener-kafka
+    ports:
+      # Host 9092 -> container 29092 (PLAINTEXT_HOST listener, advertised localhost:9092)
+      - "9092:29092"
+    environment:
+      # KRaft combined node (broker + controller in one process).
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@urlshortener-kafka:9093
+      # Explicitly point log.dirs at the mounted volume. Without this, the image's
+      # active config defaults to /tmp/kafka-logs (ephemeral container filesystem),
+      # which would silently discard all Kafka data on recreate.
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      CLUSTER_ID: 5L6g3nShT-eMCtK--X86sw
+      KAFKA_LISTENERS: PLAINTEXT://:9092,PLAINTEXT_HOST://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://urlshortener-kafka:9092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # The app publishes to the click topic automatically if it does not exist.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      # apache/kafka persists its KRaft logs at /tmp/kraft-combined-logs (default log.dirs).
+      - kafka_data:/tmp/kraft-combined-logs
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  kafka_data:

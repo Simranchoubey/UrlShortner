@@ -1,0 +1,117 @@
+# URL Shortener application configuration.
+# All secrets and environment-specific values come from environment variables —
+# nothing sensitive is hardcoded here. See .env.example for the full list.
+spring:
+  application:
+    name: url-shortener
+
+  # ---------------------------------------------------------------------------
+  # Database (PostgreSQL — wired in Phase 2).
+  # Connection details always come from environment variables; there are no
+  # hardcoded credentials. The DataSource auto-configuration exclusion removed
+  # during Phase 1 has been dropped so the app now connects to PostgreSQL.
+  # ---------------------------------------------------------------------------
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:urlshortener}
+    username: ${DB_USERNAME:}
+    password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  # ---------------------------------------------------------------------------
+  # Redis (Phase 5): cache-aside layer. Connection details come from environment
+  # variables (see .env.example); nothing sensitive is hardcoded. Redis is only a
+  # performance layer — PostgreSQL remains the source of truth everywhere.
+  # ---------------------------------------------------------------------------
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      # Fail fast(ish) but stay short so a Redis outage degrades quickly to a
+      # database round-trip instead of hanging the redirect request.
+      connect-timeout: ${REDIS_CONNECTION_TIMEOUT:2000}
+      timeout: ${REDIS_COMMAND_TIMEOUT:2000}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+# Application-level settings.
+# base-url is the public origin used to build short URLs; it is overridable via
+# the BASE_URL environment variable (never hardcoded in business logic).
+app:
+  base-url: ${BASE_URL:http://localhost:8080}
+  cache:
+    # Key prefix for cached URL values: full key becomes "url:{shortCode}".
+    key-prefix: ${CACHE_KEY_PREFIX:"url:"}
+    # Maximum TTL for a cached entry (ISO-8601 duration). For an expiring link
+    # the live TTL is min(expiresAt - now, this); for a never-expiring link it is
+    # this value (default 7 days) so stale data never lives forever (§8).
+    url-ttl: ${CACHE_URL_TTL:PT168H}
+  # Authentication (Phase 6). The secret MUST come from the JWT_SECRET env var in
+  # production — the default below is a development-only placeholder (32+ bytes)
+  # and is rejected as too short if overridden by a weak value at startup.
+  jwt:
+    secret: ${JWT_SECRET:dev-only-insecure-change-me-before-production-0000}
+    ttl-minutes: ${JWT_EXPIRATION_MINUTES:15}
+  # CORS: allowed cross-origin origins (comma-separated env CORS_ALLOWED_ORIGINS).
+  # Empty by default → no cross-origin requests. Never use "*" with credentials.
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+  # Kafka (Phase 8): asynchronous click analytics. All values are environment-driven
+  # with developer-friendly defaults (no hardcoded production infrastructure). The
+  # redirect path publishes fire-and-forget and never waits for Kafka; a broker
+  # outage only makes analytics lag. Set APP_KAFKA_ENABLED=false to run without a
+  # broker entirely (the listener container is not started).
+  kafka:
+    bootstrap-servers: ${APP_KAFKA_BOOTSTRAP_SERVERS:${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}}
+    click-topic: ${APP_KAFKA_CLICK_TOPIC:url-click-events}
+    consumer-group: ${APP_KAFKA_CONSUMER_GROUP:url-analytics}
+    enabled: ${APP_KAFKA_ENABLED:true}
+  # Rate limiting (Phase 9): fixed-window counters stored in Redis, in a distinct
+  # namespace ("rate-limit:{scope}:{identifier}") — never the URL cache keys. All
+  # values are environment-driven with developer-friendly defaults. Set
+  # APP_RATE_LIMIT_ENABLED=false to disable entirely. Redis failures are swallowed
+  # and requests are ALLOWED (fail open) so an outage never causes a 500.
+  rate-limit:
+    enabled: ${APP_RATE_LIMIT_ENABLED:true}
+    window: ${APP_RATE_LIMIT_WINDOW:PT60S}
+    # Maximum requests per window for the most abuse-prone endpoints.
+    create-url-limit: ${APP_RATE_LIMIT_CREATE_URL:30}
+    login-limit: ${APP_RATE_LIMIT_LOGIN:10}
+    register-limit: ${APP_RATE_LIMIT_REGISTER:5}
+    # Redirect path rate limiting is OFF by default (the redirect is the
+    # performance-critical path and must not pay a limiter lookup unless enabled).
+    redirect-enabled: ${APP_RATE_LIMIT_REDIRECT_ENABLED:false}
+    redirect-limit: ${APP_RATE_LIMIT_REDIRECT_LIMIT:60}
+    # Redis key namespace prefix for rate-limit counters.
+    prefix: ${APP_RATE_LIMIT_PREFIX:"rate-limit:"}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    com.example.urlshortener: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] %logger{36} - %msg%n"

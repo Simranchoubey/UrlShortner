@@ -1,0 +1,80 @@
+# Test profile configuration.
+#
+# No Docker/PostgreSQL is assumed available on developer machines, so the test
+# profile uses an in-memory H2 database (PostgreSQL compatibility mode) in place
+# of a real PostgreSQL. Hibernate generates the schema (ddl-auto: create-drop);
+# Flyway is disabled here so the PostgreSQL-specific V1__init.sql never runs
+# against H2. These tests verify context/entity/repository wiring. When Docker is
+# available, switch DB_* under the "test-it" profile (or Testcontainers) to run
+# the same surface against real PostgreSQL.
+spring:
+  application:
+    name: url-shortener-test
+
+  datasource:
+    url: jdbc:h2:mem:urlshortener;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: false
+
+# Public origin used to build short URLs in tests (mirrors app.base-url in main).
+app:
+  base-url: ${BASE_URL:http://localhost:8080}
+  cache:
+    key-prefix: "url:"
+    url-ttl: PT168H
+  # Authentication test configuration (Phase 6). A fixed dev-only secret keeps the
+  # integration tests deterministic; it is never used in production.
+  jwt:
+    secret: ${JWT_SECRET:test-only-insecure-secret-at-least-thirty-two-bytes}
+    ttl-minutes: ${JWT_EXPIRATION_MINUTES:15}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+  # Kafka (Phase 8): the test profile does not run a broker, so disable the
+  # listener auto-start. A fake ClickEventPublisher is substituted so the redirect
+  # flow can be exercised end-to-end without Kafka.
+  kafka:
+    bootstrap-servers: localhost:9092
+    click-topic: url-click-events
+    consumer-group: url-analytics-test
+    enabled: false
+  # Rate limiting (Phase 9): the test profile uses the in-memory limiter (no real
+  # Redis). The master switch is OFF by default so the existing regression suites
+  # (which register/login and create many URLs against a shared MockMvc client) are
+  # not slowed or 429ed. The dedicated rate-limit web tests ENABLE it via
+  # @TestPropertySource with small limits to exercise the 429 behaviour deterministically.
+  rate-limit:
+    enabled: false
+    window: PT60S
+    create-url-limit: 3
+    login-limit: 3
+    register-limit: 3
+    # Redirect path is NOT rate-limited in tests, matching the default production
+    # behaviour — the integration tests assert a redirect stays a 302.
+    redirect-enabled: false
+    redirect-limit: 60
+    prefix: "rate-limit:"
+
+# The test profile does not run a real Redis server, so exclude the Redis health
+# indicator — otherwise /actuator/health reports DOWN (503) just because the cache
+# is absent, which is not what the phase-1 health contract asserts.
+management:
+  health:
+    redis:
+      enabled: false
+
+logging:
+  level:
+    com.example.urlshortener: INFO
