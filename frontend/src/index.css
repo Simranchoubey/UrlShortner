@@ -19,6 +19,7 @@ input, select, textarea{font-family: inherit;}
 .app__footer{display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; padding: 24px 32px; font-size: 13px; color: var(--text-3); border-top: 1px solid var(--border-subtle);}
 .app__footer-brand{font-weight: 700; letter-spacing: -0.01em; color: var(--text-2);}
 .app__footer-copy{color: var(--text-4);}
+.app__footer-copyright{color: var(--text-4);}
 .page{width: 100%; padding-top: 44px;}
 .page--center{min-height: 60vh; display: flex; align-items: center; justify-content: center; padding-top: 0;}
 .page--narrow{max-width: 720px; margin: 0 auto;}

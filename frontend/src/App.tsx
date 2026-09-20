@@ -27,6 +27,9 @@ function Layout() {
       <footer className="app__footer">
         <span className="app__footer-brand">SHORT&#47;&#47;LINK</span>
         <span className="app__footer-copy">Simple links. Powerful analytics.</span>
+        <span className="app__footer-copyright">
+          © {new Date().getFullYear()} simran choubey. All rights reserved.
+        </span>
       </footer>
     </div>
   );
