@@ -41,7 +41,16 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      # Optional username (used by managed providers such as Upstash Redis as part
+      # of their ACL auth). Empty = connect with password only. Left unset here so
+      # local/dev Redis without a username keeps working unchanged.
+      username: ${REDIS_USERNAME:}
       password: ${REDIS_PASSWORD:}
+      ssl:
+        # Managed providers (e.g. Upstash, .upstash.io) only accept TLS on 6379;
+        # enable via REDIS_SSL_ENABLED=true for those. Default false keeps the
+        # plaintext local/dev connection unchanged.
+        enabled: ${REDIS_SSL_ENABLED:false}
       # Fail fast(ish) but stay short so a Redis outage degrades quickly to a
       # database round-trip instead of hanging the redirect request.
       connect-timeout: ${REDIS_CONNECTION_TIMEOUT:2000}
