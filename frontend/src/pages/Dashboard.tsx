@@ -95,7 +95,7 @@ export function Dashboard() {
           <Icon name="plus" /> Create link
         </button>
       </div>
-<div className="dash__stats">
+      <div className="dash__stats">
         <div className="stat-card">
           <div>
             <span className="stat-card__label">Total links</span>

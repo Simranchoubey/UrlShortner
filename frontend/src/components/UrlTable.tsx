@@ -42,8 +42,9 @@ export function UrlTable({ items, onDelete, onAnalytics }: UrlTableProps) {
   }
 
   return (
-    <div className="table-scroll">
-      <table className="url-table">
+    <>
+      <div className="table-scroll">
+        <table className="url-table">
         <thead>
           <tr>
             <th>Short link</th>
@@ -63,9 +64,7 @@ export function UrlTable({ items, onDelete, onAnalytics }: UrlTableProps) {
                 <td>
                   <div className="cell-short">
                     <span className="cell-short__code">
-                      <span aria-hidden="true" style={{ color: "var(--text-4)" }}>
-                        {String(idx + 1).padStart(2, "0")}
-                      </span>
+                      <span className="row-index">{String(idx + 1).padStart(2, "0")}</span>
                       <a
                         href={u.shortUrl}
                         target="_blank"
@@ -81,14 +80,12 @@ export function UrlTable({ items, onDelete, onAnalytics }: UrlTableProps) {
                   {displayUrl(u.originalUrl)}
                 </td>
                 <td className="cell-status">
-                  <span className={`badge ${expired ? "badge--danger" : "badge--active"}`}>
-                    {expired ? "Expired" : "Active"}
-                  </span>
-                  {u.customAlias ? (
-                    <span style={{ marginLeft: 6 }}>
-                      <span className="badge badge--alias">alias</span>
+                  <span className="cell-status__badges">
+                    <span className={`badge ${expired ? "badge--danger" : "badge--active"}`}>
+                      {expired ? "Expired" : "Active"}
                     </span>
-                  ) : null}
+                    {u.customAlias ? <span className="badge badge--alias">alias</span> : null}
+                  </span>
                 </td>
                 <td className="cell-date">{formatDate(u.createdAt)}</td>
                 <td className="cell-date">{formatDate(u.expiresAt)}</td>
@@ -127,7 +124,76 @@ export function UrlTable({ items, onDelete, onAnalytics }: UrlTableProps) {
             );
           })}
         </tbody>
-      </table>
-    </div>
+        </table>
+      </div>
+
+      {/* Mobile / narrow-screen card list (shown when the table is hidden). */}
+      <div className="url-cards">
+        {items.map((u) => {
+          const expired = isExpired(u.expiresAt);
+          return (
+            <article key={u.id} className="url-card">
+              <div className="url-card__row">
+                <a
+                  className="url-card__short"
+                  href={u.shortUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  title={`${u.shortUrl} → ${u.originalUrl}`}
+                >
+                  {u.shortUrl.replace(/^https?:\/\/[^/]+/, "")}
+                </a>
+                <div className="url-card__badges">
+                  <span className={`badge ${expired ? "badge--danger" : "badge--active"}`}>
+                    {expired ? "Expired" : "Active"}
+                  </span>
+                </div>
+              </div>
+              <p className="url-card__target" title={u.originalUrl}>
+                {displayUrl(u.originalUrl, 60)}
+              </p>
+              <p className="url-card__meta">
+                Created {formatDate(u.createdAt)}
+                {u.customAlias ? (
+                  <>
+                    {" "}
+                    · <span className="badge badge--alias">alias</span>
+                  </>
+                ) : null}
+              </p>
+              <div className="url-card__actions">
+                <button
+                  type="button"
+                  className={`icon-btn icon-btn--copy${copiedId === u.id ? " copied" : ""}`}
+                  onClick={() => copy(u.shortUrl, u.id)}
+                  title="Copy short URL"
+                  aria-label={`Copy short URL ${u.shortCode}`}
+                >
+                  {copiedId === u.id ? <Icon name="link" /> : <Icon name="copy" />}
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => onAnalytics(u)}
+                  title="View click analytics"
+                  aria-label={`View analytics for ${u.shortCode}`}
+                >
+                  <Icon name="chart" />
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn icon-btn--danger"
+                  onClick={() => onDelete(u)}
+                  title="Delete this short URL"
+                  aria-label={`Delete ${u.shortCode}`}
+                >
+                  <Icon name="trash" />
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </>
   );
 }
