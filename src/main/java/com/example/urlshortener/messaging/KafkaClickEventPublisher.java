@@ -3,6 +3,7 @@ package com.example.urlshortener.messaging;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
@@ -20,10 +21,12 @@ import org.springframework.stereotype.Component;
  * when Kafka is down; analytics simply lag while the log records the drop/buffer
  * (§20/§19 of the plan).
  *
- * <p>Disabled under the {@code test} profile, where a test double is substituted
- * so integration tests run without a Kafka broker.
+ * <p>Only active when Kafka is <b>enabled</b> ({@code app.kafka.enabled} = true) and
+ * outside the {@code test} profile. When Kafka is disabled, the {@link KafkaConfig}
+ * supplies a no-op {@link ClickEventPublisher}, so no broker is ever contacted.
  */
 @Component
+@ConditionalOnProperty(prefix = "app.kafka", name = "enabled", havingValue = "true")
 @Profile("!test")
 public class KafkaClickEventPublisher implements ClickEventPublisher {
 

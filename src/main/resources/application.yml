@@ -75,13 +75,13 @@ app:
   # Kafka (Phase 8): asynchronous click analytics. All values are environment-driven
   # with developer-friendly defaults (no hardcoded production infrastructure). The
   # redirect path publishes fire-and-forget and never waits for Kafka; a broker
-  # outage only makes analytics lag. Set APP_KAFKA_ENABLED=false to run without a
-  # broker entirely (the listener container is not started).
+  # outage only makes analytics lag. Kafka is DISABLED by default so the app runs
+  # without a broker. Set APP_KAFKA_ENABLED=true to enable the producer/consumer.
   kafka:
     bootstrap-servers: ${APP_KAFKA_BOOTSTRAP_SERVERS:${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}}
     click-topic: ${APP_KAFKA_CLICK_TOPIC:url-click-events}
     consumer-group: ${APP_KAFKA_CONSUMER_GROUP:url-analytics}
-    enabled: ${APP_KAFKA_ENABLED:true}
+    enabled: ${APP_KAFKA_ENABLED:false}
   # Rate limiting (Phase 9): fixed-window counters stored in Redis, in a distinct
   # namespace ("rate-limit:{scope}:{identifier}") — never the URL cache keys. All
   # values are environment-driven with developer-friendly defaults. Set

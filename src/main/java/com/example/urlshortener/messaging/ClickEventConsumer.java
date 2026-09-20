@@ -6,6 +6,7 @@ import com.example.urlshortener.repository.ClickEventRepository;
 import com.example.urlshortener.repository.UrlRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -24,10 +25,12 @@ import org.springframework.stereotype.Component;
  * Deliberately, no analytics aggregation is performed here — that is a later phase;
  * this phase only persists raw click rows (§6).
  *
- * <p>Disabled under the {@code test} profile (no {@link KafkaListener} container),
- * so the context loads without a broker.
+ * <p>Only active when Kafka is <b>enabled</b> ({@code app.kafka.enabled} = true) and
+ * outside the {@code test} profile — so the context loads without a broker when
+ * Kafka is disabled.
  */
 @Component
+@ConditionalOnProperty(prefix = "app.kafka", name = "enabled", havingValue = "true")
 @Profile("!test")
 public class ClickEventConsumer {
 
